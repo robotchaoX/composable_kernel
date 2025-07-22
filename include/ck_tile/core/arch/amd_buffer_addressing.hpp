@@ -1302,6 +1302,28 @@ CK_TILE_DEVICE void async_buffer_load_dword_v(void* smem,
                      : "memory");
 }
 
+template <bool pre_nop = false>
+CK_TILE_DEVICE void async_buffer_load_dwordx4_v(void* smem,
+                                                int32x4_t rsrc,
+                                                index_t voffset,
+                                                index_t /*soffset*/,
+                                                index_t ioffset /*max 0xFFF*/,
+                                                index_t /*flag*/       = 0,
+                                                bool_constant<pre_nop> = {})
+{
+    if constexpr(pre_nop)
+        asm volatile("s_nop 4\n"
+                     "buffer_load_dwordx4 %1, %2, 0 offen offset:%3 lds"
+                     : "=r"(smem) /*dummy dependency for smem*/
+                     : "v"(voffset), "s"(rsrc), "n"(ioffset)
+                     : "memory");
+    else
+        asm volatile("buffer_load_dwordx4 %1, %2, 0 offen offset:%3 lds"
+                     : "=r"(smem) /*dummy dependency for smem*/
+                     : "v"(voffset), "s"(rsrc), "n"(ioffset)
+                     : "memory");
+}
+
 CK_TILE_DEVICE void async_buffer_load_fence(index_t cnt = 0)
 {
     asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
@@ -1759,15 +1781,30 @@ CK_TILE_DEVICE void amd_async_buffer_load_impl(CK_TILE_LDS_ADDR T* smem,
                                                index_t src_immediate_addr_offset = 0,
                                                bool_constant<pre_nop>            = {})
 {
-    static_assert(sizeof(T) * N == 4, "wrong! not implemented vector size");
-
-    async_buffer_load_dword_v(smem,
-                              src_wave_buffer_resource,
-                              src_thread_addr_offset,
-                              src_wave_addr_offset,
-                              src_immediate_addr_offset,
-                              0,
-                              bool_constant<pre_nop>{});
+    if constexpr(sizeof(T) * N == 4)
+    {
+        async_buffer_load_dword_v(smem,
+                                  src_wave_buffer_resource,
+                                  src_thread_addr_offset,
+                                  src_wave_addr_offset,
+                                  src_immediate_addr_offset,
+                                  0,
+                                  bool_constant<pre_nop>{});
+    }
+    else if constexpr(sizeof(T) * N == 16)
+    {
+        async_buffer_load_dwordx4_v(smem,
+                                    src_wave_buffer_resource,
+                                    src_thread_addr_offset,
+                                    src_wave_addr_offset,
+                                    src_immediate_addr_offset,
+                                    0,
+                                    bool_constant<pre_nop>{});
+    }
+    else
+    {
+        static_assert(sizeof(T) * N == 4, "wrong! not implemented vector size");
+    }
 }
 
 template <typename T,
