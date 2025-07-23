@@ -364,7 +364,13 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         using KDataType = remove_cvref_t<typename Problem::KDataType>;
         if constexpr(AsyncCopy)
         {
-            return 4 / sizeof(KDataType);
+#if defined(__gfx950__)
+            constexpr index_t MaxLoadSizeInBytes = 4 * 4; // dwordx4
+#else
+            constexpr index_t MaxLoadSizeInBytes = 4; // dword
+#endif
+
+            return MaxLoadSizeInBytes / sizeof(KDataType);
         }
         else
         {
@@ -509,7 +515,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
 
     template <typename Problem, index_t IBuf = 0>
     CK_TILE_HOST_DEVICE static constexpr auto
-        MakeKLdsStoreBlockDescriptor(number<IBuf> = number<0>{})
+    MakeKLdsStoreBlockDescriptor(number<IBuf> = number<0>{})
     {
         // K is always k-major, we use async-copy to load into LDS
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
