@@ -134,6 +134,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
         // clang-format off
         return concat('_', "pipeline_AGmemBGmemCRegV1", 
                       concat('x', kMPerBlock, kNPerBlock, kKPerBlock,  BlockSize),
+                      concat('x', WG::kM, WG::kN, WG::kK),
                       concat('x', GetVectorSizeA(), GetVectorSizeB(), GetVectorSizeC()),
                       concat('x', kPadM, kPadN, kPadK));
         // clang-format on
@@ -439,7 +440,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
 
             __builtin_amdgcn_sched_barrier(0);
         #endif
-        #if 0 //MI300 FP8 16X16 16*64*256
+        #if 1 //MI300 FP8 16X16 16*64*256
             static_for<0, 1, 1>{}([&](auto i) {
                 ignore = i;
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
