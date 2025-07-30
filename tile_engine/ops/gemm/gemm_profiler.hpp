@@ -131,7 +131,8 @@ class GemmProfiler
                                                                      setting_.n_repeat_,
                                                                      setting_.is_gpu_timer_,
                                                                      setting_.flush_cache_,
-                                                                     setting_.rotating_count_});
+                                                                     setting_.rotating_count_,
+                                                                     setting_.bench_time_ms_});
             process_result(gemm_problem,
                            c_m_n_dev_buf,
                            c_m_n_host_result,
@@ -218,10 +219,8 @@ class GemmProfiler
                 {
                     file << "rocm_version,device_name,"
                          << "split_k,m,n,k,stride_a,stride_b,stride_c,"
-                         << "dtype_a,dtype_b,dtype_acc,dtype_c,"
-                         << "layout_a,layout_b,layout_c,"
-                         << "structured_sparsity,"
-                         << "name,"
+                         << "dtype_a,dtype_b,dtype_acc,dtype_c," << "layout_a,layout_b,layout_c,"
+                         << "structured_sparsity," << "name,"
                          << "latency(ms),tflops(TFlops),bandwidth(GB/s),metric\n";
                 }
 
@@ -251,7 +250,7 @@ class GemmProfiler
         return kernel_instance;
     }
 
-    GemmProfiler(const GemmProfiler&) = delete;
+    GemmProfiler(const GemmProfiler&)            = delete;
     GemmProfiler& operator=(const GemmProfiler&) = delete;
 
     private:
