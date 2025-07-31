@@ -64,7 +64,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using Kernel = ck_tile::Reduce<Porblem>;
 
     float ave_time = launch_kernel(ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
-                                   ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
+                                   ck_tile::make_kernel<kBlockPerCu>(
                                        Kernel{},
                                        kGridSize,
                                        kBlockSize,
