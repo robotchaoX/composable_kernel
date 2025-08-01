@@ -37,7 +37,8 @@ struct GemmHostArgs
                               index_t K_,
                               index_t stride_A_,
                               index_t stride_B_,
-                              index_t stride_E_)
+                              index_t stride_E_,
+                              bool use_reduction_for_splitk_ = false)
         : a_ptr(a_ptr_),
           b_ptr(b_ptr_),
           e_ptr(e_ptr_),
@@ -47,7 +48,8 @@ struct GemmHostArgs
           stride_A(stride_A_),
           stride_B(stride_B_),
           stride_E(stride_E_),
-          k_batch(k_batch_)
+          k_batch(k_batch_),
+          use_reduction_for_splitk(use_reduction_for_splitk_)
     {
     }
 
@@ -72,6 +74,7 @@ struct GemmHostArgs
     };
 
     index_t k_batch;
+    bool use_reduction_for_splitk;
 };
 
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
@@ -152,7 +155,8 @@ struct GemmKernel
                 {hostArgs.stride_A},
                 {hostArgs.stride_B},
                 {/*hostArgs.stride_Ds*/},
-                hostArgs.stride_E));
+                hostArgs.stride_E,
+                hostArgs.use_reduction_for_splitk));
     }
 
     CK_TILE_HOST static auto

@@ -41,7 +41,8 @@ struct UniversalGemmHostArgs
                                        const std::array<index_t, NumATensor>& stride_As_,
                                        const std::array<index_t, NumBTensor>& stride_Bs_,
                                        const std::array<index_t, NumDTensor>& stride_Ds_,
-                                       index_t stride_E_)
+                                       index_t stride_E_,
+                                       bool use_reduction_for_splitk_ = false)
         : as_ptr(as_ptr_),
           bs_ptr(bs_ptr_),
           ds_ptr(ds_ptr_),
@@ -53,7 +54,8 @@ struct UniversalGemmHostArgs
           stride_Bs(stride_Bs_),
           stride_Ds(stride_Ds_),
           stride_E(stride_E_),
-          k_batch(k_batch_)
+          k_batch(k_batch_),
+          use_reduction_for_splitk(use_reduction_for_splitk_)
     {
     }
 
@@ -78,6 +80,7 @@ struct UniversalGemmHostArgs
     };
 
     index_t k_batch;
+    bool use_reduction_for_splitk;
 };
 
 /// @brief The GEMM kernel device arguments.
@@ -111,6 +114,7 @@ struct UniversalGemmKernelArgs
     ///        (in memory) of E tensor.
     index_t stride_E;
     index_t k_batch;
+    bool use_reduction_for_splitk;
 };
 
 /// @brief The Universal GEMM kernel template.
@@ -282,7 +286,8 @@ struct UniversalGemmKernel
                           hostArgs.stride_Bs,
                           hostArgs.stride_Ds,
                           hostArgs.stride_E,
-                          hostArgs.k_batch};
+                          hostArgs.k_batch,
+                          hostArgs.use_reduction_for_splitk};
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
@@ -332,11 +337,24 @@ struct UniversalGemmKernel
             {
                 splitted_k = __builtin_amdgcn_readfirstlane(kargs.K - KRead * (kargs.k_batch - 1));
             }
+            
+            // Calculate workspace output offset only if using workspace mode for split-K
+            if(kargs.use_reduction_for_splitk && kargs.k_batch > 1)
+            {
+                // Each K split writes to: workspace[k_id * M * N]
+                workspace_output_offset = __builtin_amdgcn_readfirstlane(k_id * kargs.M * kargs.N);
+            }
+            else
+            {
+                // Use no offset for final output (atomic mode or no split-K)
+                workspace_output_offset = 0;
+            }
         }
 
         std::array<index_t, NumATensor> as_k_split_offset;
         std::array<index_t, NumBTensor> bs_k_split_offset;
         index_t splitted_k;
+        index_t workspace_output_offset;
     };
 
     CK_TILE_HOST static bool IsSupportedArgument(const KernelArgs& kargs)
@@ -692,10 +710,23 @@ struct UniversalGemmKernel
 
         // TODO: enable vector write for C in ColMajor
         const auto& e_tensor_view = [&]() {
+            // Use workspace pointer with offset only if using workspace mode for split-K
+            EDataType* output_ptr;
+            if(kargs.use_reduction_for_splitk && kargs.k_batch > 1)
+            {
+                // Calculate the workspace pointer for this K split
+                output_ptr = static_cast<EDataType*>(e_ptr) + splitk_batch_offset.workspace_output_offset;
+            }
+            else
+            {
+                // Use the original output pointer (atomic mode or no split-K)
+                output_ptr = static_cast<EDataType*>(e_ptr);
+            }
+            
             if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
             {
                 return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
-                    e_ptr,
+                    output_ptr,
                     make_tuple(kargs.M, kargs.N), // arguments not matching with flatmm.
                     make_tuple(kargs.stride_E, 1),
                     number<EpiloguePipeline::GetVectorSizeC()>{},
@@ -704,7 +735,7 @@ struct UniversalGemmKernel
             else
             {
                 return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
-                    e_ptr,
+                    output_ptr,
                     make_tuple(kargs.M, kargs.N),
                     make_tuple(1, kargs.stride_E),
                     number<1>{},
@@ -928,9 +959,17 @@ struct UniversalGemmKernel
                                        const index_t block_idx_n)
     {
         // Create Gemm tensor views, pad views and tile windows
-        const auto& gemm_tensor_views_tuple =
-            MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                as_ptr, bs_ptr, ds_ptr, e_ptr, kargs, splitk_batch_offset);
+        const auto& gemm_tensor_views_tuple = [&]() {
+            if(kargs.use_reduction_for_splitk && kargs.k_batch > 1) {
+                // Use SET operation for workspace mode to avoid atomics
+                return MakeGemmTensorViews<memory_operation_enum::set>(
+                    as_ptr, bs_ptr, ds_ptr, e_ptr, kargs, splitk_batch_offset);
+            } else {
+                // Use the epilogue's configured memory operation (typically atomic_add for split-K)
+                return MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
+                    as_ptr, bs_ptr, ds_ptr, e_ptr, kargs, splitk_batch_offset);
+            }
+        }();
 
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
@@ -986,9 +1025,17 @@ struct UniversalGemmKernel
                                            const index_t block_idx_n)
     {
         // Create Gemm tensor views, pad views and tile windows
-        const auto& gemm_tensor_views_tuple =
-            MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                as_ptr, bs_ptr, ds_ptr, e_ptr, kargs, splitk_batch_offset);
+        const auto& gemm_tensor_views_tuple = [&]() {
+            if(kargs.use_reduction_for_splitk && kargs.k_batch > 1) {
+                // Use SET operation for workspace mode to avoid atomics
+                return MakeGemmTensorViews<memory_operation_enum::set>(
+                    as_ptr, bs_ptr, ds_ptr, e_ptr, kargs, splitk_batch_offset);
+            } else {
+                // Use the epilogue's configured memory operation (typically atomic_add for split-K)
+                return MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
+                    as_ptr, bs_ptr, ds_ptr, e_ptr, kargs, splitk_batch_offset);
+            }
+        }();
 
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);

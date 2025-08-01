@@ -458,6 +458,7 @@ auto create_args(int argc, char* argv[])
         .insert("split_k", "1", "splitK value")
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
         .insert("persistent", "0", "0:non-persistent, 1:persistent")
+        .insert("split_k_mode", "1", "0:atomic split-K, 1:reduction split-K")
         .insert("bench_time_ms", "0", "benchmark time in ms, defaults to 0 ms");
 
     bool result = arg_parser.parse(argc, argv);
