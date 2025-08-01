@@ -161,8 +161,8 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
             throw std::runtime_error("Kernel arguments not supported!");
         }
 
-        const dim3 blocks     = Kernel::BlockSize();
-        const dim3 grids      = Kernel::GridSize(gemm_descs);
+        const dim3 blocks = Kernel::BlockSize();
+        const dim3 grids  = Kernel::GridSize(gemm_descs);
 
         HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
                                             kargs.data(),
