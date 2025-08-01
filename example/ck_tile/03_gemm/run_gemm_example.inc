@@ -427,7 +427,6 @@ int run_gemm_example_with_layouts(int argc,
               << " Persistent=" << (persistent ? "on" : "off") << " : " << ave_time << " ms, "
               << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
 
-
     bool pass = true;
 
     if(arg_parser.get_int("v") == 1)
@@ -513,17 +512,17 @@ int run_gemm_example_with_layouts(int argc,
                                CDataType,
                                GemmConfig,
                                DataTypeTraits>(arg_parser.get_str("jsonfile"),
-                                           M,
-                                           N,
-                                           K,
-                                           stride_A,
-                                           stride_B,
-                                           stride_C,
-                                           persistent,
-                                           pass,
-                                           ave_time,
-                                           tflops,
-                                           gb_per_sec);
+                                               M,
+                                               N,
+                                               K,
+                                               stride_A,
+                                               stride_B,
+                                               stride_C,
+                                               persistent,
+                                               pass,
+                                               ave_time,
+                                               tflops,
+                                               gb_per_sec);
     }
 
     return pass;

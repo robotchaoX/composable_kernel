@@ -105,7 +105,7 @@ auto create_args(int argc, char* argv[])
         .insert("seed", "-1", "seed to be used, -1 means random every time")
         .insert("kname", "0", "t to 1 will print kernel name")
         .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
-        .insert("jsonfile", "batched_transpose.json", "json file name to dump results");
+        .insert("jsonfile", "batched_transpose.json", "json file name to dump results")
         .insert("pipeline", "0", "0: no LDS usage, 1: LDS-accelerated (gfx950)");
 
     bool result = arg_parser.parse(argc, argv);

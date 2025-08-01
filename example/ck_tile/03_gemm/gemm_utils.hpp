@@ -471,7 +471,7 @@ auto create_args(int argc, char* argv[])
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
         .insert("persistent", "0", "0:non-persistent, 1:persistent")
         .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
-        .insert("jsonfile", "gemm.json", "json file name to dump results");
+        .insert("jsonfile", "gemm.json", "json file name to dump results")
         .insert("flush_cache", "true", "flush cache before running the kernel, defaults to true")
         .insert("rotating_count", "1", "rotating count, defaults to 1");
 
