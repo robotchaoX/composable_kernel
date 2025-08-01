@@ -450,6 +450,7 @@ struct fmha_bwd_traits
     bool has_dropout;
     bool is_store_randval;
     bool is_deterministic;
+    bool is_atomic_fp32;
     // TODO: padding check is inside this api
 };
 template <int Version = 2>

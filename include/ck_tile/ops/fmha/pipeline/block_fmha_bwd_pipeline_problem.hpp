@@ -25,6 +25,7 @@ template <typename QDataType_,
           typename BlockFmhaShape_,
           bool kIsGroupMode_,
           bool kIsDeterministic_,
+          bool kIsAtomic32_,
           typename FmhaMask_,
           typename FmhaDropout_,
           typename Traits_>
@@ -53,6 +54,7 @@ struct BlockFmhaBwdPipelineProblem
     static constexpr index_t kBlockSize    = BlockFmhaShape::NumWarps * get_warp_size();
     static constexpr bool kIsGroupMode     = kIsGroupMode_;
     static constexpr bool kIsDeterministic = kIsDeterministic_;
+    static constexpr bool kIsAtomic32      = kIsAtomic32_;
 
     // attributes from traits
     static constexpr bool kPadSeqLenQ    = Traits::kPadSeqLenQ;

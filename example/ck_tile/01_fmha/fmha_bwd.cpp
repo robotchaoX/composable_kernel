@@ -94,7 +94,8 @@ auto create_args(int argc, char* argv[])
         .insert("deterministic",
                 "0",
                 "if set to 1 will use multi-buffer reduction strategy for dq, atomic opeartion "
-                "will not be used");
+                "will not be used")
+        .insert("atomic_fp32", "1", "if set to 0 will use atomic fp16/bf16(w/o convert_dq kernel)");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -198,6 +199,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int stream_repeat  = arg_parser.get_int("repeat");
     bool kname         = arg_parser.get_bool("kname");
     bool deterministic = arg_parser.get_bool("deterministic");
+    bool atomic_fp32   = arg_parser.get_bool("atomic_fp32")
+    bool atomic_fp16   = !(deterministic || atomic_fp32);
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,
@@ -324,9 +327,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ? get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, max_seqlen_k)
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
     ck_tile::HostTensor<AccDataType> dq_acc_host(
-        i_perm
-            ? std::array<ck_tile::index_t, 5>{nsplits, shape_batch, nhead, shape_seqlen_q, hdim_q}
-            : std::array<ck_tile::index_t, 5>{nsplits, shape_batch, shape_seqlen_q, nhead, hdim_q});
+        !atomic_fp16 ? (i_perm ? std::array<ck_tile::index_t,
+                                            5>{nsplits, shape_batch, nhead, shape_seqlen_q, hdim_q}
+                               : std::array<ck_tile::index_t,
+                                            5>{nsplits, shape_batch, shape_seqlen_q, nhead, hdim_q})
+                     : std::array<ck_tile::index_t, 5>{
+                           1, 1, 1, 1, 1} /* dummy shape for simplifying code */);
 
     if(init_method == 0)
     {
@@ -438,7 +444,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        use_dbias,
                                        p_drop > 0.0f,
                                        s_randval,
-                                       deterministic};
+                                       deterministic,
+                                       atomic_fp32};
     auto fmha_args   = [&]() {
         assert(nhead % nhead_k == 0);
         /// NOTE: we broadcast bias from [1, 1, seqlen_q, seqlen_k] to [batch, nhead, seqlen_q,
@@ -480,6 +487,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t batch_stride_dbias   = (nhead * shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t split_stride_dq_acc =
             (shape_batch * nhead * shape_seqlen_q * hdim_q);
+        auto dq_acc_ptr = atomic_16 ? dq_buf.GetDeviceBuffer() : dq_acc_buf.GetDeviceBuffer(); // atomic16 not need dq_acc
 
         const auto drop_seed_offset = [&]() -> decltype(fmha_bwd_args::drop_seed_offset) {
             if(drop_prefs)
@@ -507,7 +515,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              dk_buf.GetDeviceBuffer(),
                              dv_buf.GetDeviceBuffer(),
                              dbias_buf.GetDeviceBuffer(),
-                             dq_acc_buf.GetDeviceBuffer(),
+                             dq_acc_ptr,
                              seqstart_q.GetDeviceBuffer(),
                              seqstart_k.GetDeviceBuffer(),
                              nullptr,

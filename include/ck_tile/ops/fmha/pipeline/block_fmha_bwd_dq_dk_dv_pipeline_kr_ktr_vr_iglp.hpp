@@ -56,6 +56,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
     static constexpr auto BiasEnum         = Problem::BiasEnum;
     static constexpr bool kHasBiasGrad     = Problem::kHasBiasGrad;
     static constexpr bool kIsDeterministic = Problem::kIsDeterministic;
+    static constexpr bool kIsAtomic32      = Problem::kIsAtomic32;
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
@@ -1030,7 +1031,14 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
         }
         else
         {
-            update_tile(dq_dram_window, dq_acc);
+            if constexpr(kIsAtomic32)
+            {
+                update_tile(dq_dram_window, dq_acc);
+            }
+            else
+            {
+                update_tile(dq_dram_window, cast_tile<QGradDataType>(dq_acc));
+            }
         }
 
         return make_tuple(dk_acc, dv_acc);

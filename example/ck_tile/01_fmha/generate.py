@@ -52,6 +52,8 @@ def list_blobs(output_file : Optional[str], api_list : List[str], filters_list :
     for api, kernel_filter in zip(api_list, filters_list):
         handler = handlers[api][HandlerId.LIST_BLOBS]
         handler(file_path, kernel_filter, receipt, optdim_list, mask_impl)
+    import pdb
+    pdb.set_trace()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
