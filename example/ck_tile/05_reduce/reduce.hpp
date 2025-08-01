@@ -65,6 +65,7 @@ struct Reduce
     using ComputeDataType = ck_tile::remove_cvref_t<typename Problem::ComputeDataType>;
     using YDataType       = ck_tile::remove_cvref_t<typename Problem::YDataType>;
 
+    static constexpr index_t KernelBlockSize = Problem::BlockShape::BlockSize;
 #if 0
     CK_TILE_DEVICE void operator()(const XDataType* p_x, YDataType* p_y, index_t M, index_t N)
     const
